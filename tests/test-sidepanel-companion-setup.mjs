@@ -19,8 +19,8 @@ assert.equal(
 assert.equal(isFirefoxCompanionSetupError("A normal ChatGPT error"), false);
 
 const details = getFirefoxCompanionSetupDetails("1.2.3");
-assert.equal(details.command, "npx --yes codex-firefox-bridge@1.2.3 install");
-assert.equal(details.doctorCommand, "npx --yes codex-firefox-bridge@1.2.3 doctor");
+assert.equal(details.command, "npx --yes zen-browser-use-secure-bridge@1.2.3 install");
+assert.equal(details.doctorCommand, "npx --yes zen-browser-use-secure-bridge@1.2.3 doctor");
 assert.match(details.chromeSetupUrl, /^https:\/\/learn\.chatgpt\.com\/docs\/chrome-extension/u);
 assert.match(details.windowsUrl, /v1\.2\.3\/codex-firefox-bridge-1\.2\.3-windows-x64-setup\.exe$/u);
 assert.match(details.macosUrl, /v1\.2\.3\/codex-firefox-bridge-1\.2\.3-macos-universal\.pkg$/u);

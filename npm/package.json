@@ -1,10 +1,10 @@
 {
-  "name": "codex-firefox-bridge",
-  "version": "1.4.12",
-  "description": "Install and manage the Codex native-messaging bridge for Firefox and Zen Browser",
+  "name": "zen-browser-use-secure-bridge",
+  "version": "1.0.0",
+  "description": "Install and manage the Secure Browser Use native bridge for Zen Browser",
   "type": "module",
   "bin": {
-    "codex-firefox-bridge": "cli.mjs"
+    "zen-browser-use-secure-bridge": "cli.mjs"
   },
   "files": [
     "cli.mjs",
@@ -23,13 +23,13 @@
     "zen-browser",
     "native-messaging"
   ],
-  "homepage": "https://github.com/SunkenInTime/codex-computer-use-firefox-zen",
+  "homepage": "https://github.com/simonrendon/zen-browser-use-secure",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SunkenInTime/codex-computer-use-firefox-zen.git",
+    "url": "git+https://github.com/simonrendon/zen-browser-use-secure.git",
     "directory": "npm"
   },
-  "bugs": "https://github.com/SunkenInTime/codex-computer-use-firefox-zen/issues",
+  "bugs": "https://github.com/simonrendon/zen-browser-use-secure/issues",
   "license": "UNLICENSED",
   "publishConfig": {
     "access": "public",

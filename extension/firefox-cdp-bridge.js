@@ -5,6 +5,8 @@
     return;
   }
   globalThis.__chatgptFirefoxCdpBridgeInstalled = true;
+  const MAX_BINDING_NAME_LENGTH = 256;
+  const MAX_BINDING_PAYLOAD_LENGTH = 1024 * 1024;
 
   // Firefox WebExtensions cannot drive a native synchronous page prompt after
   // it blocks the content process. Hooking before page scripts run prevents the
@@ -72,7 +74,7 @@
   });
 
   window.addEventListener("message", (event) => {
-    if (event.source !== window) {
+    if (event.source !== window || event.origin !== window.location.origin) {
       return;
     }
 
@@ -81,7 +83,12 @@
       message == null ||
       typeof message !== "object" ||
       message.source !== "chatgpt-firefox-cdp" ||
-      message.type !== "binding"
+      message.type !== "binding" ||
+      typeof message.name !== "string" ||
+      message.name.length === 0 ||
+      message.name.length > MAX_BINDING_NAME_LENGTH ||
+      typeof message.payload !== "string" ||
+      message.payload.length > MAX_BINDING_PAYLOAD_LENGTH
     ) {
       return;
     }

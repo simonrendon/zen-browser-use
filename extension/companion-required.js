@@ -3,7 +3,7 @@
 
   const version = browser.runtime.getManifest().version;
   const releaseBase =
-    `https://github.com/SunkenInTime/codex-computer-use-firefox-zen/releases/download/v${version}`;
+    `https://github.com/simonrendon/zen-browser-use-secure/releases/download/v${version}`;
   const windows = document.querySelector("#windows-download");
   const macos = document.querySelector("#macos-download");
   const linux = document.querySelector("#linux-download");
@@ -16,8 +16,8 @@
   const copyDoctorCommand = document.querySelector("#copy-doctor-command");
   const parameters = new URLSearchParams(location.search);
   const mismatch = parameters.get("reason") === "version-mismatch";
-  const command = `npx --yes codex-firefox-bridge@${version} install`;
-  const doctor = `npx --yes codex-firefox-bridge@${version} doctor`;
+  const command = `npx --yes zen-browser-use-secure-bridge@${version} install`;
+  const doctor = `npx --yes zen-browser-use-secure-bridge@${version} doctor`;
 
   if (mismatch) {
     const bridgeVersion = parameters.get("bridgeVersion") ?? "unknown";

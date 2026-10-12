@@ -57,10 +57,10 @@ test("extracts the matching checksum from multi-file checksum lists", () => {
 
 test("generates Firefox native-host manifests", () => {
   const manifest = nativeManifest("/tmp/bridge");
-  assert.equal(manifest.name, "com.openai.codexextension");
+  assert.equal(manifest.name, "com.simonrendon.zen_browser_use_secure");
   assert.equal(manifest.path, "/tmp/bridge");
   assert.deepEqual(manifest.allowed_extensions, [
-    "codex-computer-use-firefox-zen@sunkenintime"
+    "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}"
   ]);
 });
 
@@ -72,29 +72,29 @@ test("uses per-user installation locations", () => {
   );
   assert.equal(
     windows.directory,
-    path.win32.join("C:\\Users\\test\\AppData\\Local", "Codex Firefox Bridge")
+    path.win32.join("C:\\Users\\test\\AppData\\Local", "Secure Browser Use for Zen")
   );
   const macos = installLocations("darwin", {}, "/Users/test");
   assert.equal(
     macos.manifest,
-    "/Users/test/Library/Application Support/Mozilla/NativeMessagingHosts/com.openai.codexextension.json"
+    "/Users/test/Library/Application Support/Mozilla/NativeMessagingHosts/com.simonrendon.zen_browser_use_secure.json"
   );
   assert.deepEqual(manifestPaths(macos), [macos.manifest]);
   assert.deepEqual(optionalManifestPaths(macos), []);
   const linux = installLocations("linux", {}, "/home/test");
   assert.equal(
     linux.directory,
-    "/home/test/.local/share/Codex Firefox Bridge"
+    "/home/test/.local/share/Secure Browser Use for Zen"
   );
   assert.equal(
     linux.manifest,
-    "/home/test/.mozilla/native-messaging-hosts/com.openai.codexextension.json"
+    "/home/test/.mozilla/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
   );
   assert.deepEqual(manifestPaths(linux), [
-    "/home/test/.mozilla/native-messaging-hosts/com.openai.codexextension.json"
+    "/home/test/.mozilla/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
   ]);
   assert.deepEqual(optionalManifestPaths(linux), [
-    "/home/test/.zen/native-messaging-hosts/com.openai.codexextension.json"
+    "/home/test/.zen/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
   ]);
   const linuxXdg = installLocations(
     "linux",
@@ -103,10 +103,10 @@ test("uses per-user installation locations", () => {
   );
   assert.equal(
     linuxXdg.directory,
-    "/home/test/.data/Codex Firefox Bridge"
+    "/home/test/.data/Secure Browser Use for Zen"
   );
   assert.deepEqual(optionalManifestPaths(linuxXdg), [
-    "/home/test/.zen/native-messaging-hosts/com.openai.codexextension.json"
+    "/home/test/.zen/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
   ]);
 });
 
@@ -190,7 +190,7 @@ test("does not retry permanent release-download failures", async () => {
 });
 
 test("only identifies versioned bridge processes inside the install directory", () => {
-  const directory = "C:\\Users\\test\\AppData\\Local\\Codex Firefox Bridge";
+  const directory = "C:\\Users\\test\\AppData\\Local\\Secure Browser Use for Zen";
   assert.equal(
     isInstalledBridgeBinary(
       `${directory}\\codex-firefox-bridge-1.4.1.exe`,

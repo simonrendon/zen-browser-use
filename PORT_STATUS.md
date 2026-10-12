@@ -13,7 +13,7 @@ Editing Assets menu refresh was also changed to preserve upstream menu items.
 
 ## End-to-end test evidence
 
-The extension was loaded temporarily from `extension/manifest.json`, its optional Firefox permission was enabled, and the machine-local adapter was registered under its fixed Gecko ID. The publication build uses `codex-computer-use-firefox-zen@sunkenintime`; the adapter allowlist is generated from the matching project registration script.
+The extension was loaded temporarily from `extension/manifest.json`, its optional Firefox permission was enabled, and the machine-local adapter was registered under its fixed Gecko ID. This hardened fork uses `{2ed87dbc-332c-4f85-9655-bd6e7b932d43}`; the adapter allowlist is generated from the matching project registration script.
 
 - The real signed-in ChatGPT sidebar rendered its New task UI while browser automation remained connected and functional.
 - Semantic and direct computer-use input produced `clicked:final-firefox-smoke` and `clicked:cua-direct-ok` in the fixture.

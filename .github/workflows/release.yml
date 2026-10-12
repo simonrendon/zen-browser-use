@@ -18,6 +18,7 @@ concurrency:
 permissions:
   contents: write
   id-token: write
+  attestations: write
 
 jobs:
   auth-check:
@@ -77,8 +78,13 @@ jobs:
           Copy-Item installer/windows/Output/*.exe dist/
           Copy-Item native-host/target/release/codex-firefox-bridge.exe `
             "dist/codex-firefox-bridge-$version-windows-x64.exe"
-      - name: Sign Windows installer
-        if: env.WINDOWS_SIGNING_CERTIFICATE_PFX != ''
+      - name: Require Windows signing credentials
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PFX) -or [string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD)) {
+            throw 'Signed releases require WINDOWS_SIGNING_CERTIFICATE_PFX and WINDOWS_SIGNING_CERTIFICATE_PASSWORD.'
+          }
+      - name: Sign and verify Windows artifacts
         shell: pwsh
         env:
           SIGNING_CERTIFICATE: ${{ env.WINDOWS_SIGNING_CERTIFICATE_PFX }}
@@ -90,6 +96,9 @@ jobs:
             Sort-Object FullName -Descending |
             Select-Object -First 1
           & $signtool.FullName sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $certificate /p $env:SIGNING_PASSWORD (Get-ChildItem dist\*.exe).FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+          & $signtool.FullName verify /pa /all (Get-ChildItem dist\*.exe).FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Authenticode verification failed.' }
       - name: Checksum Windows installer
         shell: pwsh
         run: |
@@ -109,6 +118,9 @@ jobs:
       MACOS_INSTALLER_CERTIFICATE_P12: ${{ secrets.MACOS_INSTALLER_CERTIFICATE_P12 }}
       MACOS_INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_INSTALLER_CERTIFICATE_PASSWORD }}
       MACOS_INSTALLER_IDENTITY: ${{ secrets.MACOS_INSTALLER_IDENTITY }}
+      MACOS_APPLICATION_CERTIFICATE_P12: ${{ secrets.MACOS_APPLICATION_CERTIFICATE_P12 }}
+      MACOS_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_APPLICATION_CERTIFICATE_PASSWORD }}
+      MACOS_APPLICATION_IDENTITY: ${{ secrets.MACOS_APPLICATION_IDENTITY }}
       MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
       MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
       MACOS_NOTARY_APP_PASSWORD: ${{ secrets.MACOS_NOTARY_APP_PASSWORD }}
@@ -127,52 +139,75 @@ jobs:
           version="$(node -p "require('./version.json').version")"
           root="$RUNNER_TEMP/pkg-root"
           scripts="$RUNNER_TEMP/pkg-scripts"
-          mkdir -p "$root/Library/Application Support/Codex Firefox Bridge" "$scripts" dist
+          mkdir -p "$root/Library/Application Support/Secure Browser Use for Zen" "$scripts" dist
           lipo -create \
             native-host/target/aarch64-apple-darwin/release/codex-firefox-bridge \
             native-host/target/x86_64-apple-darwin/release/codex-firefox-bridge \
-            -output "$root/Library/Application Support/Codex Firefox Bridge/codex-firefox-bridge"
-          cp "$root/Library/Application Support/Codex Firefox Bridge/codex-firefox-bridge" \
+            -output "$root/Library/Application Support/Secure Browser Use for Zen/zen-browser-use-secure-bridge"
+          cp "$root/Library/Application Support/Secure Browser Use for Zen/zen-browser-use-secure-bridge" \
             "dist/codex-firefox-bridge-$version-macos-universal"
-          cp installer/macos/com.openai.codexextension.json \
-            "$root/Library/Application Support/Codex Firefox Bridge/"
+          cp installer/macos/com.simonrendon.zen_browser_use_secure.json \
+            "$root/Library/Application Support/Secure Browser Use for Zen/"
           cp installer/macos/scripts/postinstall "$scripts/postinstall"
-          chmod 755 "$root/Library/Application Support/Codex Firefox Bridge/codex-firefox-bridge" "$scripts/postinstall"
+          chmod 755 "$root/Library/Application Support/Secure Browser Use for Zen/zen-browser-use-secure-bridge" "$scripts/postinstall"
           pkgbuild \
             --root "$root" \
             --scripts "$scripts" \
             --ownership recommended \
-            --identifier "com.sunkenintime.codex-firefox-bridge" \
+            --identifier "com.simonrendon.zen-browser-use-secure" \
             --version "$version" \
             "dist/codex-firefox-bridge-$version-macos-universal.pkg"
-      - name: Sign and notarize macOS package
-        if: env.MACOS_INSTALLER_CERTIFICATE_P12 != ''
+      - name: Sign, notarize, and verify macOS artifacts
         shell: bash
         env:
           INSTALLER_CERTIFICATE: ${{ env.MACOS_INSTALLER_CERTIFICATE_P12 }}
           INSTALLER_CERTIFICATE_PASSWORD: ${{ env.MACOS_INSTALLER_CERTIFICATE_PASSWORD }}
           INSTALLER_IDENTITY: ${{ env.MACOS_INSTALLER_IDENTITY }}
+          APPLICATION_CERTIFICATE: ${{ env.MACOS_APPLICATION_CERTIFICATE_P12 }}
+          APPLICATION_CERTIFICATE_PASSWORD: ${{ env.MACOS_APPLICATION_CERTIFICATE_PASSWORD }}
+          APPLICATION_IDENTITY: ${{ env.MACOS_APPLICATION_IDENTITY }}
           APPLE_ID: ${{ env.MACOS_NOTARY_APPLE_ID }}
           APPLE_TEAM_ID: ${{ env.MACOS_NOTARY_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ env.MACOS_NOTARY_APP_PASSWORD }}
         run: |
           set -euo pipefail
+          for variable in INSTALLER_CERTIFICATE INSTALLER_CERTIFICATE_PASSWORD INSTALLER_IDENTITY APPLICATION_CERTIFICATE APPLICATION_CERTIFICATE_PASSWORD APPLICATION_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
+            test -n "${!variable:-}" || { echo "Signed releases require $variable" >&2; exit 1; }
+          done
           keychain="$RUNNER_TEMP/release-signing.keychain-db"
-          certificate="$RUNNER_TEMP/installer-certificate.p12"
-          echo "$INSTALLER_CERTIFICATE" | base64 --decode > "$certificate"
+          installer_certificate="$RUNNER_TEMP/installer-certificate.p12"
+          application_certificate="$RUNNER_TEMP/application-certificate.p12"
+          echo "$INSTALLER_CERTIFICATE" | base64 --decode > "$installer_certificate"
+          echo "$APPLICATION_CERTIFICATE" | base64 --decode > "$application_certificate"
           security create-keychain -p release "$keychain"
           security unlock-keychain -p release "$keychain"
-          security import "$certificate" -k "$keychain" -P "$INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign
+          security import "$installer_certificate" -k "$keychain" -P "$INSTALLER_CERTIFICATE_PASSWORD" -T /usr/bin/productsign
+          security import "$application_certificate" -k "$keychain" -P "$APPLICATION_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -s -k release "$keychain"
-          package="$(echo dist/*.pkg)"
-          productsign --sign "$INSTALLER_IDENTITY" "$package" "$RUNNER_TEMP/signed.pkg"
-          mv "$RUNNER_TEMP/signed.pkg" "$package"
+          version="$(node -p "require('./version.json').version")"
+          binary="dist/codex-firefox-bridge-$version-macos-universal"
+          codesign --force --options runtime --timestamp --sign "$APPLICATION_IDENTITY" "$binary"
+          codesign --verify --strict --verbose=2 "$binary"
+          cp "$binary" "$RUNNER_TEMP/pkg-root/Library/Application Support/Secure Browser Use for Zen/zen-browser-use-secure-bridge"
+          pkgbuild \
+            --root "$RUNNER_TEMP/pkg-root" \
+            --scripts "$RUNNER_TEMP/pkg-scripts" \
+            --ownership recommended \
+            --identifier "com.simonrendon.zen-browser-use-secure" \
+            --version "$version" \
+            "$RUNNER_TEMP/unsigned.pkg"
+          package="dist/codex-firefox-bridge-$version-macos-universal.pkg"
+          rm -f "$package"
+          productsign --sign "$INSTALLER_IDENTITY" "$RUNNER_TEMP/unsigned.pkg" "$package"
           xcrun notarytool submit "$package" \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --wait
           xcrun stapler staple "$package"
+          xcrun stapler validate "$package"
+          pkgutil --check-signature "$package"
+          spctl --assess --type install --verbose=2 "$package"
       - name: Checksum macOS package
         shell: bash
         run: |
@@ -245,6 +280,10 @@ jobs:
         with:
           path: release
           merge-multiple: true
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release/*
       - uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
@@ -295,12 +334,12 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./version.json').version")"
           for attempt in {1..12}; do
-            if [ "$(npm view "codex-firefox-bridge@${version}" version 2>/dev/null || true)" = "$version" ]; then
+            if [ "$(npm view "zen-browser-use-secure-bridge@${version}" version 2>/dev/null || true)" = "$version" ]; then
               exit 0
             fi
             sleep 10
           done
-          echo "codex-firefox-bridge@${version} did not become available" >&2
+          echo "zen-browser-use-secure-bridge@${version} did not become available" >&2
           exit 1
       - name: Install the public companion from scratch
         shell: bash
@@ -312,8 +351,8 @@ jobs:
           HOME="$scratch/home" \
             npm_config_cache="$scratch/npm-cache" \
             CODEX_FIREFOX_ORIGINAL_HOST="/usr/bin/true" \
-            npx --yes "codex-firefox-bridge@${version}" install
-          manifest="$scratch/home/Library/Application Support/Mozilla/NativeMessagingHosts/com.openai.codexextension.json"
+            npx --yes "zen-browser-use-secure-bridge@${version}" install
+          manifest="$scratch/home/Library/Application Support/Mozilla/NativeMessagingHosts/com.simonrendon.zen_browser_use_secure.json"
           test -f "$manifest"
           binary="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).path" "$manifest")"
           test "$("$binary" --version)" = "$version"
@@ -334,12 +373,12 @@ jobs:
           set -euo pipefail
           version="$(node -p "require('./version.json').version")"
           for attempt in {1..12}; do
-            if [ "$(npm view "codex-firefox-bridge@${version}" version 2>/dev/null || true)" = "$version" ]; then
+            if [ "$(npm view "zen-browser-use-secure-bridge@${version}" version 2>/dev/null || true)" = "$version" ]; then
               exit 0
             fi
             sleep 10
           done
-          echo "codex-firefox-bridge@${version} did not become available" >&2
+          echo "zen-browser-use-secure-bridge@${version} did not become available" >&2
           exit 1
       - name: Install the public Linux companion from scratch
         shell: bash
@@ -351,9 +390,9 @@ jobs:
           HOME="$scratch/home" \
             npm_config_cache="$scratch/npm-cache" \
             CODEX_FIREFOX_ORIGINAL_HOST="/usr/bin/true" \
-            npx --yes "codex-firefox-bridge@${version}" install
-          firefox_manifest="$scratch/home/.mozilla/native-messaging-hosts/com.openai.codexextension.json"
-          zen_manifest="$scratch/home/.zen/native-messaging-hosts/com.openai.codexextension.json"
+            npx --yes "zen-browser-use-secure-bridge@${version}" install
+          firefox_manifest="$scratch/home/.mozilla/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
+          zen_manifest="$scratch/home/.zen/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
           test -f "$firefox_manifest"
           test -f "$zen_manifest"
           binary="$(node -p "JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')).path" "$firefox_manifest")"

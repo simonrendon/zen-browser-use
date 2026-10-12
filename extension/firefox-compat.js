@@ -7,8 +7,12 @@
   }
 
   const OFFICIAL_CHROME_EXTENSION_ID = "hehggadaopoacecdllhhajmbjkdcmajg";
+  const OFFICIAL_NATIVE_HOST_NAME = "com.openai.codexextension";
+  const BRIDGE_NATIVE_HOST_NAME = "com.simonrendon.zen_browser_use_secure";
   const FIREFOX_BRIDGE_DISPLAY_NAME = "Codex Firefox Bridge (Firefox and Zen Browser)";
   const BINDING_MESSAGE_SOURCE = "chatgpt-firefox-cdp";
+  const MAX_BINDING_NAME_LENGTH = 256;
+  const MAX_BINDING_PAYLOAD_LENGTH = 1024 * 1024;
   const COMPANION_VERSION_FIELD = "_firefoxBridgeVersion";
   let bridgeVersionMismatchDetected = false;
 
@@ -389,7 +393,9 @@
   const runtimeCompat = new Proxy(firefox.runtime, {
     get(target, property) {
       if (property === "connectNative") {
-        return (application) => createNativePortProxy(target.connectNative(application));
+        return (application) => createNativePortProxy(target.connectNative(
+          application === OFFICIAL_NATIVE_HOST_NAME ? BRIDGE_NATIVE_HOST_NAME : application,
+        ));
       }
       if (property === "onMessage") {
         return runtimeOnMessageCompat;
@@ -2388,12 +2394,13 @@
         enumerable: false,
         writable: true,
         value(payload) {
-          window.postMessage({
+          const message = {
             source: ${JSON.stringify(BINDING_MESSAGE_SOURCE)},
             type: "binding",
             name: __name,
             payload: typeof payload === "string" ? payload : JSON.stringify(payload),
-          }, "*");
+          };
+          window.postMessage(message, window.location.origin === "null" ? "*" : window.location.origin);
         },
       });
       return {};
@@ -3748,6 +3755,9 @@
       case "Runtime.releaseObjectGroup":
         return executeCspSafePageOperation(tabId, "releaseObjectGroup", { objectGroup: params.objectGroup }, { frameId });
       case "Runtime.addBinding": {
+        if (typeof params.name !== "string" || params.name.length === 0 || params.name.length > MAX_BINDING_NAME_LENGTH || params.name.includes("\0")) {
+          throw new Error("Runtime.addBinding requires a valid binding name.");
+        }
         const names = bindingNamesByTab.get(tabId) ?? new Set();
         names.add(params.name);
         bindingNamesByTab.set(tabId, names);
@@ -4720,11 +4730,24 @@
     if (message?.type !== "CHATGPT_FIREFOX_CDP_BINDING" || !Number.isInteger(sender.tab?.id)) {
       return undefined;
     }
-    emitDebuggerEvent(sender.tab.id, "Runtime.bindingCalled", {
+    const tabId = sender.tab.id;
+    if (
+      sender.id !== firefox.runtime.id ||
+      !debuggerAttachedTabs.has(tabId) ||
+      typeof message.name !== "string" ||
+      message.name.length === 0 ||
+      message.name.length > MAX_BINDING_NAME_LENGTH ||
+      !bindingNamesByTab.get(tabId)?.has(message.name) ||
+      typeof message.payload !== "string" ||
+      message.payload.length > MAX_BINDING_PAYLOAD_LENGTH
+    ) {
+      return Promise.resolve({ ok: false });
+    }
+    emitDebuggerEvent(tabId, "Runtime.bindingCalled", {
       name: message.name,
       payload: message.payload,
       executionContextId: executionContextIdForFrame(sender.frameId ?? 0),
-    }, (sender.frameId ?? 0) === 0 ? null : (sessionIdByFrame.get(frameKey(sender.tab.id, sender.frameId)) ?? null));
+    }, (sender.frameId ?? 0) === 0 ? null : (sessionIdByFrame.get(frameKey(tabId, sender.frameId)) ?? null));
     return Promise.resolve({ ok: true });
   });
 
