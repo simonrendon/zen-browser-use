@@ -1,0 +1,9 @@
+{
+  "name": "com.simonrendon.zen_browser_use_secure",
+  "description": "Secure Browser Use native-messaging bridge for Zen",
+  "path": "/Library/Application Support/Secure Browser Use for Zen/zen-browser-use-secure-bridge",
+  "type": "stdio",
+  "allowed_extensions": [
+    "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}"
+  ]
+}

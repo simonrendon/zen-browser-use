@@ -2,11 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export const HOST_NAME = "com.openai.codexextension";
+export const HOST_NAME = "com.simonrendon.zen_browser_use_secure";
 export const GECKO_EXTENSION_ID =
-  "codex-computer-use-firefox-zen@sunkenintime";
+  "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}";
 export const REPOSITORY =
-  "SunkenInTime/codex-computer-use-firefox-zen";
+  "simonrendon/zen-browser-use-secure";
 
 export function platformAsset(version, platform = process.platform, arch = process.arch) {
   if (platform === "win32" && arch === "x64") {
@@ -101,7 +101,7 @@ export function installLocations(
     if (!localAppData) {
       throw new Error("LOCALAPPDATA is unavailable.");
     }
-    const directory = platformPath.join(localAppData, "Codex Firefox Bridge");
+    const directory = platformPath.join(localAppData, "Secure Browser Use for Zen");
     const manifest = platformPath.join(directory, `${HOST_NAME}.json`);
     return {
       directory,
@@ -115,7 +115,7 @@ export function installLocations(
       home,
       "Library",
       "Application Support",
-      "Codex Firefox Bridge"
+      "Secure Browser Use for Zen"
     );
     const manifest = platformPath.join(
       home,
@@ -134,7 +134,7 @@ export function installLocations(
   if (platform === "linux") {
     const dataHome =
       environment.XDG_DATA_HOME || platformPath.join(home, ".local", "share");
-    const directory = platformPath.join(dataHome, "Codex Firefox Bridge");
+    const directory = platformPath.join(dataHome, "Secure Browser Use for Zen");
     const manifest = platformPath.join(
       home,
       ".mozilla",
@@ -170,7 +170,7 @@ export function optionalManifestPaths(locations) {
 export function nativeManifest(binaryPath) {
   return {
     name: HOST_NAME,
-    description: "Codex Firefox native-messaging bridge",
+    description: "Secure Browser Use native-messaging bridge for Zen",
     path: binaryPath,
     type: "stdio",
     allowed_extensions: [GECKO_EXTENSION_ID]

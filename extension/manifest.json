@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Codex Computer Use for Firefox",
-  "description": "Bring Codex computer use and its signed-in sidebar to Firefox and Zen Browser.",
-  "version": "1.4.12",
+  "name": "Secure Browser Use for Zen",
+  "description": "A security-hardened local bridge for Codex browser control in Zen Browser and Firefox.",
+  "version": "1.0.0",
   "icons": {
     "16": "images/firefox-zen-icon16.png",
     "24": "images/firefox-zen-icon24.png",
@@ -14,7 +14,7 @@
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "codex-computer-use-firefox-zen@sunkenintime",
+      "id": "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}",
       "strict_min_version": "152.0",
       "data_collection_permissions": {
         "required": [
@@ -69,7 +69,7 @@
       "96": "images/firefox-zen-icon96.png",
       "128": "images/firefox-zen-icon128.png"
     },
-    "default_title": "Codex for Firefox and Zen Browser"
+    "default_title": "Secure Browser Use for Zen"
   },
   "commands": {
     "open-codex-side-panel": {
@@ -90,7 +90,7 @@
       "96": "images/firefox-zen-icon96.png",
       "128": "images/firefox-zen-icon128.png"
     },
-    "default_title": "Codex for Firefox and Zen Browser",
+    "default_title": "Secure Browser Use for Zen",
     "default_panel": "codex-sidepanel/index.html",
     "open_at_install": false
   },

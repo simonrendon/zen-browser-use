@@ -15,7 +15,7 @@ const supervisorTerminationMaximumMilliseconds = 1500;
 const smallUploadContents = "Firefox file upload parity\n";
 const bridgeVersion = JSON.parse(fs.readFileSync(path.join(root, "version.json"), "utf8")).version;
 const enrichmentBytes = Buffer.byteLength(`,"_firefoxBridgeVersion":"${bridgeVersion}"`, "utf8");
-const firefoxExtensionId = "codex-computer-use-firefox-zen@sunkenintime";
+const firefoxExtensionId = "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}";
 const chromeExtensionId = "hehggadaopoacecdllhhajmbjkdcmajg";
 const selectedCase = process.env.CHATGPT_FIREFOX_TEST_CASE;
 const cargoCandidates = [
@@ -246,11 +246,14 @@ try {
     const rewrittenUrl = new URL(message.appServerUrl);
     assert.equal(rewrittenUrl.hostname, "127.0.0.1");
     assert.notEqual(rewrittenUrl.port, "45678");
+    assert.match(rewrittenUrl.pathname, /^\/_zen_browser_use_secure\/[0-9a-f]{64}\/$/u);
     assert.equal(rewrittenUrl.searchParams.get("token"), "test");
     const serializedResult = JSON.parse(message.serializedResult);
     const nestedUrl = new URL(serializedResult.localAppServerUrl);
     assert.equal(nestedUrl.hostname, "127.0.0.1");
     assert.equal(nestedUrl.port, rewrittenUrl.port);
+    assert.match(nestedUrl.pathname, /^\/_zen_browser_use_secure\/[0-9a-f]{64}\/$/u);
+    assert.equal(nestedUrl.pathname.split("/")[2], rewrittenUrl.pathname.split("/")[2]);
     assert.equal(nestedUrl.searchParams.get("clientId"), "nested");
   }
 

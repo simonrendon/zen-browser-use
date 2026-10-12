@@ -42,6 +42,7 @@ let strictCspEnabled = false;
 let strictCspDynamicEvaluationAttempts = 0;
 const tabUpdateCalls = [];
 const nativePostedMessages = [];
+const nativeApplications = [];
 const nativePort = {
   onMessage: new EventMock(),
   onDisconnect: new EventMock(),
@@ -238,11 +239,11 @@ function executeInStrictCspPage(func, args) {
 
 const browser = {
   runtime: {
-    id: "codex-computer-use-firefox-zen@sunkenintime", onMessage: new EventMock(),
+    id: "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}", onMessage: new EventMock(),
     async getBrowserInfo() { return { name: "Firefox", version: "152.0", buildID: "test" }; },
     getManifest() { return { version: "test" }; },
     getURL(pathname) { return `moz-extension://test/${pathname}`; },
-    connectNative() { return nativePort; },
+    connectNative(application) { nativeApplications.push(application); return nativePort; },
   },
   action: {
     async setBadgeBackgroundColor() {},
@@ -425,6 +426,7 @@ const context = vm.createContext({
 });
 new vm.Script(source, { filename: "firefox-compat.js" }).runInContext(context);
 const compat = context.__chatgptFirefoxCompat;
+const compatRawMessageListener = browser.runtime.onMessage.listeners.at(-1);
 assert.ok(compat?.debugger, "Compatibility debugger was not installed.");
 assert.equal(
   (await context.chrome.action.getUserSettings()).isOnToolbar,
@@ -438,6 +440,7 @@ assert.equal(
 );
 
 const identityPort = context.chrome.runtime.connectNative("com.openai.codexextension");
+assert.equal(nativeApplications.at(-1), "com.simonrendon.zen_browser_use_secure");
 identityPort.onMessage.addListener(() => {});
 nativePort.onMessage.emit({
   _firefoxBridgeVersion: "test",
@@ -458,7 +461,7 @@ assert.equal(bridgeIdentity.metadata.bridgeName, "codex-firefox-bridge");
 assert.equal(bridgeIdentity.metadata.bridgeVersion, "test");
 assert.equal(bridgeIdentity.metadata.compatibilityFamily, "chrome");
 assert.equal(bridgeIdentity.metadata.extensionId, "hehggadaopoacecdllhhajmbjkdcmajg");
-assert.equal(bridgeIdentity.metadata.geckoExtensionId, "codex-computer-use-firefox-zen@sunkenintime");
+assert.equal(bridgeIdentity.metadata.geckoExtensionId, "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}");
 assert.equal(bridgeIdentity.metadata.extensionInstanceId, "test-instance");
 assert.equal(createdTabs.length, 0, "Matching bridge and extension versions must not show update guidance.");
 
@@ -641,6 +644,26 @@ const browserUseBindingName = "__browserUseClipboard_strict_csp_test";
 strictCspEnabled = true;
 const strictCspOperationStart = cspSafeOperations.length;
 await compat.debugger.sendCommand({ tabId: 1 }, "Runtime.addBinding", { name: browserUseBindingName });
+await assert.rejects(
+  compat.debugger.sendCommand({ tabId: 1 }, "Runtime.addBinding", { name: "x".repeat(257) }),
+  /valid binding name/u,
+);
+const bindingEventStart = events.length;
+const validBindingResponse = await compatRawMessageListener(
+  { type: "CHATGPT_FIREFOX_CDP_BINDING", name: browserUseBindingName, payload: "safe" },
+  { id: browser.runtime.id, tab: { id: 1 }, frameId: 7 },
+);
+assert.equal(validBindingResponse.ok, true);
+assert.equal(events.at(-1).method, "Runtime.bindingCalled");
+assert.equal(events.at(-1).params.payload, "safe");
+for (const [message, sender] of [
+  [{ type: "CHATGPT_FIREFOX_CDP_BINDING", name: "unregistered", payload: "forged" }, { id: browser.runtime.id, tab: { id: 1 }, frameId: 7 }],
+  [{ type: "CHATGPT_FIREFOX_CDP_BINDING", name: browserUseBindingName, payload: "forged" }, { id: "foreign-extension", tab: { id: 1 }, frameId: 7 }],
+  [{ type: "CHATGPT_FIREFOX_CDP_BINDING", name: browserUseBindingName, payload: "x".repeat(1024 * 1024 + 1) }, { id: browser.runtime.id, tab: { id: 1 }, frameId: 7 }],
+]) {
+  assert.equal((await compatRawMessageListener(message, sender)).ok, false);
+}
+assert.equal(events.length, bindingEventStart + 1, "Forged or oversized binding messages must not become CDP events.");
 const clipboardInit = await compat.debugger.sendCommand({ tabId: 1 }, "Page.addScriptToEvaluateOnNewDocument", {
   runImmediately: true,
   source: `(() => {

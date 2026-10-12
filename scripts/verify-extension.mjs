@@ -21,10 +21,10 @@ function existsInExtension(relativePath) {
 
 const manifest = JSON.parse(read("extension/manifest.json"));
 assert(manifest.manifest_version === 3, "The port must remain a Manifest V3 extension.");
-assert(manifest.name === "Codex Computer Use for Firefox", "Unexpected extension display name.");
-assert(manifest.action?.default_title === "Codex for Firefox and Zen Browser", "Unexpected toolbar display name.");
-assert(manifest.sidebar_action?.default_title === "Codex for Firefox and Zen Browser", "Unexpected sidebar display name.");
-assert(manifest.browser_specific_settings?.gecko?.id === "codex-computer-use-firefox-zen@sunkenintime", "Unexpected Gecko extension ID.");
+assert(manifest.name === "Secure Browser Use for Zen", "Unexpected extension display name.");
+assert(manifest.action?.default_title === "Secure Browser Use for Zen", "Unexpected toolbar display name.");
+assert(manifest.sidebar_action?.default_title === "Secure Browser Use for Zen", "Unexpected sidebar display name.");
+assert(manifest.browser_specific_settings?.gecko?.id === "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}", "Unexpected Gecko extension ID.");
 assert(manifest.sidebar_action?.default_panel === "codex-sidepanel/index.html", "The Firefox sidebar is not wired to the ChatGPT panel.");
 assert(manifest.background?.scripts?.[0] === "firefox-compat.js", "The compatibility layer must load before the packaged background bundle.");
 assert(manifest.background?.scripts?.[1] === "editing-assets.js", "The editing-assets context-menu bridge is missing.");
@@ -63,8 +63,8 @@ for (const setupFile of [
 }
 new vm.Script(read("extension/companion-required.js"), { filename: "companion-required.js" });
 const setupHtml = read("extension/companion-required.html");
-assert(setupHtml.includes("codex-firefox-bridge@"), "The npm installation path is missing from setup.");
-assert(setupHtml.includes("https://addons.mozilla.org/firefox/addon/codex-computer-use-for-zen/"), "The signed Firefox extension update path is missing from setup.");
+assert(setupHtml.includes("zen-browser-use-secure-bridge@"), "The npm installation path is missing from setup.");
+assert(setupHtml.includes("https://github.com/simonrendon/zen-browser-use-secure/releases/latest"), "The signed extension update path is missing from setup.");
 assert(setupHtml.includes('id="version-status"'), "The setup page cannot show installed version details.");
 assert(setupHtml.includes('id="linux-download"'), "The setup page is missing the Linux companion download.");
 assert(setupHtml.includes("Download Linux binary"), "The setup page must not present the Linux binary as an installer.");

@@ -3,6 +3,8 @@ use regex::{Captures, Regex};
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
+#[cfg(unix)]
+use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
@@ -13,13 +15,17 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
 
-const HOST_NAME: &str = "com.openai.codexextension";
+const BRIDGE_HOST_NAME: &str = "com.simonrendon.zen_browser_use_secure";
+const OFFICIAL_HOST_NAME: &str = "com.openai.codexextension";
 const OFFICIAL_CHROME_ORIGIN: &str = "chrome-extension://hehggadaopoacecdllhhajmbjkdcmajg/";
 const OFFICIAL_CHROME_EXTENSION_ID: &str = "hehggadaopoacecdllhhajmbjkdcmajg";
-const FIREFOX_EXTENSION_ID: &str = "codex-computer-use-firefox-zen@sunkenintime";
+const FIREFOX_EXTENSION_ID: &str = "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}";
 const MAX_NATIVE_INPUT_MESSAGE_BYTES: usize = 1024 * 1024 * 1024;
 const MAX_NATIVE_OUTPUT_MESSAGE_BYTES: usize = 1024 * 1024;
 const CODEX_VERSION_TIMEOUT: Duration = Duration::from_secs(2);
+const RELAY_TOKEN_BYTES: usize = 32;
+const RELAY_ROUTE_PREFIX: &str = "/_zen_browser_use_secure/";
+const RELAY_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, PartialEq)]
 struct AppServerRuntime {
@@ -45,6 +51,7 @@ fn main() {
         match discover_original_host() {
             Ok(path) => {
                 println!("bridge-version={}", env!("CARGO_PKG_VERSION"));
+                println!("bridge-host-name={BRIDGE_HOST_NAME}");
                 println!("original-host={}", path.display());
                 return;
             }
@@ -68,8 +75,9 @@ fn main() {
 fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(("127.0.0.1", 0))?;
     let relay_port = listener.local_addr()?.port();
+    let relay_token = generate_relay_token()?;
     let upstream_port = Arc::new(AtomicU16::new(0));
-    start_websocket_relay(listener, Arc::clone(&upstream_port));
+    start_websocket_relay(listener, Arc::clone(&upstream_port), relay_token.clone());
 
     let host_path = discover_original_host()?;
     let mut command = Command::new(&host_path);
@@ -103,8 +111,13 @@ fn run() -> Result<i32, Box<dyn std::error::Error>> {
     let (output_outcome_tx, output_outcome_rx) = mpsc::channel();
     let output_fatal_state = Arc::clone(&fatal_output);
     let output_thread = thread::spawn(move || {
-        let outcome =
-            forward_native_messages(child_stdout, relay_port, upstream_port, output_fatal_state);
+        let outcome = forward_native_messages(
+            child_stdout,
+            relay_port,
+            &relay_token,
+            upstream_port,
+            output_fatal_state,
+        );
         let _ = output_outcome_tx.send(outcome.clone());
         outcome
     });
@@ -391,7 +404,7 @@ fn fallback_registry_entry(
         "extensionBuildChannels": ["prod"],
         "extensionIds": [OFFICIAL_CHROME_EXTENSION_ID, FIREFOX_EXTENSION_ID],
         "installId": "codex-firefox-bridge-current-chatgpt",
-        "nativeHostNames": [HOST_NAME],
+        "nativeHostNames": [OFFICIAL_HOST_NAME],
         "nativeHostProtocolVersion": 2,
         "nativeHostVersion": "0.1.0",
         "paths": {
@@ -564,6 +577,7 @@ fn forward_stderr(mut input: ChildStderr, fatal_output: Arc<AtomicBool>) {
 fn forward_native_messages(
     mut input: ChildStdout,
     relay_port: u16,
+    relay_token: &str,
     upstream_port: Arc<AtomicU16>,
     fatal_output: Arc<AtomicBool>,
 ) -> NativeOutputOutcome {
@@ -595,7 +609,8 @@ fn forward_native_messages(
                 "[codex-firefox-bridge] native payload read failed: {error}"
             )));
         }
-        let enriched = match enrich_native_message(payload, relay_port, &upstream_port) {
+        let enriched = match enrich_native_message(payload, relay_port, relay_token, &upstream_port)
+        {
             Ok(enriched) => enriched,
             Err(projected_length) => {
                 fatal_output.store(true, Ordering::Release);
@@ -645,14 +660,16 @@ fn read_exact_or_eof(reader: &mut impl Read, buffer: &mut [u8]) -> io::Result<bo
 fn enrich_native_message(
     payload: Vec<u8>,
     relay_port: u16,
+    relay_token: &str,
     upstream_port: &AtomicU16,
 ) -> Result<Vec<u8>, u128> {
-    enrich_native_message_with_pre_read_hook(payload, relay_port, upstream_port, || {})
+    enrich_native_message_with_pre_read_hook(payload, relay_port, relay_token, upstream_port, || {})
 }
 
 fn enrich_native_message_with_pre_read_hook(
     payload: Vec<u8>,
     relay_port: u16,
+    relay_token: &str,
     upstream_port: &AtomicU16,
     pre_read_hook: impl FnOnce(),
 ) -> Result<Vec<u8>, u128> {
@@ -662,7 +679,7 @@ fn enrich_native_message_with_pre_read_hook(
     let mut pending_files = Vec::new();
     let changed = enrich_bridge_version(&mut value)
         | enrich_commands(&mut value, &mut pending_files)
-        | rewrite_websocket_urls(&mut value, relay_port, upstream_port);
+        | rewrite_websocket_urls(&mut value, relay_port, relay_token, upstream_port);
     if !changed {
         return Ok(payload);
     }
@@ -869,6 +886,57 @@ fn mime_type(extension: &str) -> &'static str {
     }
 }
 
+fn generate_relay_token() -> io::Result<String> {
+    let mut bytes = [0_u8; RELAY_TOKEN_BYTES];
+    fill_secure_random(&mut bytes)?;
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut token = String::with_capacity(RELAY_TOKEN_BYTES * 2);
+    for byte in bytes {
+        token.push(HEX[(byte >> 4) as usize] as char);
+        token.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    Ok(token)
+}
+
+#[cfg(unix)]
+fn fill_secure_random(bytes: &mut [u8]) -> io::Result<()> {
+    File::open("/dev/urandom")?.read_exact(bytes)
+}
+
+#[cfg(windows)]
+fn fill_secure_random(bytes: &mut [u8]) -> io::Result<()> {
+    #[link(name = "bcrypt")]
+    extern "system" {
+        fn BCryptGenRandom(
+            algorithm: *mut std::ffi::c_void,
+            buffer: *mut u8,
+            length: u32,
+            flags: u32,
+        ) -> i32;
+    }
+
+    const BCRYPT_USE_SYSTEM_PREFERRED_RNG: u32 = 0x0000_0002;
+    let length = u32::try_from(bytes.len())
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "random request is too large"))?;
+    // SAFETY: BCryptGenRandom writes exactly `length` bytes into the valid,
+    // mutable slice and does not retain the pointer.
+    let status = unsafe {
+        BCryptGenRandom(
+            std::ptr::null_mut(),
+            bytes.as_mut_ptr(),
+            length,
+            BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+        )
+    };
+    if status >= 0 {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "BCryptGenRandom failed with status {status:#x}"
+        )))
+    }
+}
+
 fn websocket_url_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
@@ -879,7 +947,12 @@ fn websocket_url_pattern() -> &'static Regex {
     })
 }
 
-fn rewrite_websocket_urls(value: &mut Value, relay_port: u16, upstream_port: &AtomicU16) -> bool {
+fn rewrite_websocket_urls(
+    value: &mut Value,
+    relay_port: u16,
+    relay_token: &str,
+    upstream_port: &AtomicU16,
+) -> bool {
     let mut changed = false;
     match value {
         Value::String(text) => {
@@ -892,7 +965,21 @@ fn rewrite_websocket_urls(value: &mut Value, relay_port: u16, upstream_port: &At
                         }
                         upstream_port.store(port, Ordering::SeqCst);
                         changed = true;
-                        format!("ws://127.0.0.1:{relay_port}{}", &captures["tail"])
+                        let tail = &captures["tail"];
+                        let upstream_target = if tail.is_empty() {
+                            "/"
+                        } else if tail.starts_with('/') {
+                            tail
+                        } else {
+                            // A query without an explicit path targets `/`.
+                            // WebSocket fragments are invalid and will be
+                            // rejected by the browser before a connection.
+                            "/"
+                        };
+                        let query = if tail.starts_with('?') { tail } else { "" };
+                        format!(
+                            "ws://127.0.0.1:{relay_port}{RELAY_ROUTE_PREFIX}{relay_token}{upstream_target}{query}"
+                        )
                     })
                     .into_owned();
                 *text = rewritten;
@@ -900,12 +987,12 @@ fn rewrite_websocket_urls(value: &mut Value, relay_port: u16, upstream_port: &At
         }
         Value::Object(object) => {
             for child in object.values_mut() {
-                changed |= rewrite_websocket_urls(child, relay_port, upstream_port);
+                changed |= rewrite_websocket_urls(child, relay_port, relay_token, upstream_port);
             }
         }
         Value::Array(array) => {
             for child in array {
-                changed |= rewrite_websocket_urls(child, relay_port, upstream_port);
+                changed |= rewrite_websocket_urls(child, relay_port, relay_token, upstream_port);
             }
         }
         _ => {}
@@ -913,14 +1000,20 @@ fn rewrite_websocket_urls(value: &mut Value, relay_port: u16, upstream_port: &At
     changed
 }
 
-fn start_websocket_relay(listener: TcpListener, upstream_port: Arc<AtomicU16>) {
+fn start_websocket_relay(
+    listener: TcpListener,
+    upstream_port: Arc<AtomicU16>,
+    relay_token: String,
+) {
+    let relay_token: Arc<str> = relay_token.into();
     thread::spawn(move || {
         for connection in listener.incoming() {
             match connection {
                 Ok(browser) => {
                     let upstream_port = Arc::clone(&upstream_port);
+                    let relay_token = Arc::clone(&relay_token);
                     thread::spawn(move || {
-                        if let Err(error) = relay_websocket(browser, &upstream_port) {
+                        if let Err(error) = relay_websocket(browser, &upstream_port, &relay_token) {
                             eprintln!("[codex-firefox-bridge] WebSocket relay failed: {error}");
                         }
                     });
@@ -937,13 +1030,30 @@ fn start_websocket_relay(listener: TcpListener, upstream_port: Arc<AtomicU16>) {
 fn relay_websocket(
     mut browser: TcpStream,
     upstream_port: &AtomicU16,
+    relay_token: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if !browser.peer_addr()?.ip().is_loopback() {
+        return Err("WebSocket relay rejected a non-loopback client".into());
+    }
+    browser.set_read_timeout(Some(RELAY_HANDSHAKE_TIMEOUT))?;
+    browser.set_write_timeout(Some(RELAY_HANDSHAKE_TIMEOUT))?;
+    let request = read_http_headers(&mut browser)?;
+    let request = match authenticate_and_rewrite_websocket_request(&request, relay_token) {
+        Ok(request) => request,
+        Err(error) => {
+            let _ = browser.write_all(
+                b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+            );
+            return Err(error.into());
+        }
+    };
     let port = upstream_port.load(Ordering::SeqCst);
     if port == 0 {
         return Err("upstream app-server port is unavailable".into());
     }
     let mut upstream = TcpStream::connect(("127.0.0.1", port))?;
-    let request = read_http_headers(&mut browser)?;
+    browser.set_read_timeout(None)?;
+    browser.set_write_timeout(None)?;
     upstream.write_all(rewrite_websocket_request(&request, port).as_bytes())?;
     upstream.flush()?;
 
@@ -993,6 +1103,101 @@ fn rewrite_websocket_request(request: &str, upstream_port: u16) -> String {
         .collect()
 }
 
+fn authenticate_and_rewrite_websocket_request(
+    request: &str,
+    relay_token: &str,
+) -> Result<String, &'static str> {
+    let mut lines = request.split("\r\n");
+    let request_line = lines.next().ok_or("WebSocket request line is missing")?;
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().ok_or("WebSocket method is missing")?;
+    let target = parts.next().ok_or("WebSocket target is missing")?;
+    let version = parts.next().ok_or("WebSocket HTTP version is missing")?;
+    if parts.next().is_some() || method != "GET" || version != "HTTP/1.1" {
+        return Err("WebSocket request line is invalid");
+    }
+
+    let authenticated_prefix = format!("{RELAY_ROUTE_PREFIX}{relay_token}");
+    if target.len() < authenticated_prefix.len()
+        || !constant_time_eq(
+            target
+                .as_bytes()
+                .get(..authenticated_prefix.len())
+                .unwrap_or_default(),
+            authenticated_prefix.as_bytes(),
+        )
+    {
+        return Err("WebSocket relay authentication failed");
+    }
+    let remainder = &target[authenticated_prefix.len()..];
+    let upstream_target = match remainder.as_bytes().first() {
+        None => "/".to_owned(),
+        Some(b'/') => remainder.to_owned(),
+        Some(b'?') => format!("/{remainder}"),
+        _ => return Err("WebSocket relay target is invalid"),
+    };
+
+    let mut origin = None;
+    let mut has_upgrade = false;
+    let mut has_connection_upgrade = false;
+    let mut has_websocket_key = false;
+    let mut has_websocket_version = false;
+    for line in lines.filter(|line| !line.is_empty()) {
+        let Some((name, value)) = line.split_once(':') else {
+            return Err("WebSocket header is malformed");
+        };
+        let name = name.trim().to_ascii_lowercase();
+        let value = value.trim();
+        match name.as_str() {
+            "origin" => {
+                if origin.replace(value).is_some() {
+                    return Err("WebSocket request has multiple Origin headers");
+                }
+            }
+            "upgrade" => has_upgrade = value.eq_ignore_ascii_case("websocket"),
+            "connection" => {
+                has_connection_upgrade = value
+                    .split(',')
+                    .any(|token| token.trim().eq_ignore_ascii_case("upgrade"));
+            }
+            "sec-websocket-key" => has_websocket_key = !value.is_empty(),
+            "sec-websocket-version" => has_websocket_version = value == "13",
+            _ => {}
+        }
+    }
+    if !origin.is_some_and(is_firefox_extension_origin) {
+        return Err("WebSocket relay rejected the request Origin");
+    }
+    if !(has_upgrade && has_connection_upgrade && has_websocket_key && has_websocket_version) {
+        return Err("WebSocket upgrade headers are incomplete");
+    }
+
+    Ok(request.replacen(request_line, &format!("GET {upstream_target} HTTP/1.1"), 1))
+}
+
+fn is_firefox_extension_origin(origin: &str) -> bool {
+    let Some(identifier) = origin.strip_prefix("moz-extension://") else {
+        return false;
+    };
+    !identifier.is_empty()
+        && identifier.len() <= 128
+        && identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+fn constant_time_eq(left: &[u8], right: &[u8]) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    left.iter()
+        .zip(right)
+        .fold(0_u8, |difference, (left, right)| {
+            difference | (left ^ right)
+        })
+        == 0
+}
+
 fn discover_original_host() -> Result<PathBuf, Box<dyn std::error::Error>> {
     for variable in [
         "CODEX_FIREFOX_ORIGINAL_HOST",
@@ -1031,14 +1236,14 @@ fn discover_original_host() -> Result<PathBuf, Box<dyn std::error::Error>> {
     }
 
     Err(format!(
-        "The installed OpenAI native host ({HOST_NAME}) was not found. Install the Codex Chrome integration first."
+        "The installed OpenAI native host ({OFFICIAL_HOST_NAME}) was not found. Install the Codex Chrome integration first."
     )
     .into())
 }
 
 fn host_path_from_manifest(manifest_path: &Path) -> Option<PathBuf> {
     let manifest: Value = serde_json::from_slice(&fs::read(manifest_path).ok()?).ok()?;
-    if manifest.get("name")?.as_str()? != HOST_NAME {
+    if manifest.get("name")?.as_str()? != OFFICIAL_HOST_NAME {
         return None;
     }
     let allowed = manifest.get("allowed_origins")?.as_array()?;
@@ -1056,7 +1261,8 @@ fn native_host_manifest_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
     if cfg!(windows) {
         for root in ["HKCU", "HKLM"] {
-            let key = format!(r"{root}\Software\Google\Chrome\NativeMessagingHosts\{HOST_NAME}");
+            let key =
+                format!(r"{root}\Software\Google\Chrome\NativeMessagingHosts\{OFFICIAL_HOST_NAME}");
             if let Ok(output) = Command::new("reg").args(["query", &key, "/ve"]).output() {
                 if output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1083,13 +1289,13 @@ fn native_host_manifest_candidates() -> Vec<PathBuf> {
                     home.join("Library/Application Support")
                         .join(browser)
                         .join("NativeMessagingHosts")
-                        .join(format!("{HOST_NAME}.json")),
+                        .join(format!("{OFFICIAL_HOST_NAME}.json")),
                 );
             }
         }
         candidates.push(
             PathBuf::from("/Library/Google/Chrome/NativeMessagingHosts")
-                .join(format!("{HOST_NAME}.json")),
+                .join(format!("{OFFICIAL_HOST_NAME}.json")),
         );
     } else if let Some(home) = env::var_os("HOME").map(PathBuf::from) {
         candidates.extend(linux_chrome_native_host_manifests(&home));
@@ -1109,7 +1315,10 @@ fn linux_chrome_native_host_manifests(home: &Path) -> Vec<PathBuf> {
         ".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser/NativeMessagingHosts",
     ]
     .into_iter()
-    .map(|directory| home.join(directory).join(format!("{HOST_NAME}.json")))
+    .map(|directory| {
+        home.join(directory)
+            .join(format!("{OFFICIAL_HOST_NAME}.json"))
+    })
     .collect()
 }
 
@@ -1168,6 +1377,9 @@ fn bundled_app_host_candidates_for(
 mod tests {
     use super::*;
 
+    const TEST_RELAY_TOKEN: &str =
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
     fn file_input_message(paths: &[&Path]) -> Vec<u8> {
         serde_json::to_vec(&json!({
             "jsonrpc": "2.0",
@@ -1221,7 +1433,7 @@ mod tests {
         assert!(projected_length > MAX_NATIVE_OUTPUT_MESSAGE_BYTES);
 
         let upstream = AtomicU16::new(0);
-        let error = enrich_native_message(payload, 54321, &upstream).expect_err(
+        let error = enrich_native_message(payload, 54321, TEST_RELAY_TOKEN, &upstream).expect_err(
             "an upload that would exceed Firefox's 1 MiB native-message limit must be rejected before its contents are loaded or base64-encoded",
         );
 
@@ -1241,10 +1453,13 @@ mod tests {
         assert!(projected_total_length > MAX_NATIVE_OUTPUT_MESSAGE_BYTES);
 
         let upstream = AtomicU16::new(0);
-        let error = enrich_native_message(file_input_message(&[&first, &second]), 54321, &upstream)
-            .expect_err(
-                "the second file must be checked against the remaining native-message budget",
-            );
+        let error = enrich_native_message(
+            file_input_message(&[&first, &second]),
+            54321,
+            TEST_RELAY_TOKEN,
+            &upstream,
+        )
+        .expect_err("the second file must be checked against the remaining native-message budget");
 
         assert_eq!(error, projected_total_length as u128);
     }
@@ -1258,8 +1473,13 @@ mod tests {
             serde_json::from_slice(&expected_enriched_file_input(&[&file])).unwrap();
 
         let upstream = AtomicU16::new(0);
-        let enriched = enrich_native_message(file_input_message(&[&file]), 54321, &upstream)
-            .expect("a small upload within Firefox's native-message limit must be enriched");
+        let enriched = enrich_native_message(
+            file_input_message(&[&file]),
+            54321,
+            TEST_RELAY_TOKEN,
+            &upstream,
+        )
+        .expect("a small upload within Firefox's native-message limit must be enriched");
 
         assert_eq!(
             serde_json::from_slice::<Value>(&enriched).unwrap(),
@@ -1292,9 +1512,10 @@ mod tests {
         .unwrap();
 
         let upstream = AtomicU16::new(0);
-        let enriched: Value =
-            serde_json::from_slice(&enrich_native_message(payload, 54321, &upstream).unwrap())
-                .unwrap();
+        let enriched: Value = serde_json::from_slice(
+            &enrich_native_message(payload, 54321, TEST_RELAY_TOKEN, &upstream).unwrap(),
+        )
+        .unwrap();
 
         assert!(enriched["commands"][0]["params"]
             .get("_firefoxFilePayloads")
@@ -1324,9 +1545,10 @@ mod tests {
         .unwrap();
 
         let upstream = AtomicU16::new(0);
-        let enriched: Value =
-            serde_json::from_slice(&enrich_native_message(payload, 54321, &upstream).unwrap())
-                .unwrap();
+        let enriched: Value = serde_json::from_slice(
+            &enrich_native_message(payload, 54321, TEST_RELAY_TOKEN, &upstream).unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(
             enriched["responses"][0]["params"]["_firefoxFilePayloads"],
@@ -1352,7 +1574,13 @@ mod tests {
 
         let upstream = AtomicU16::new(0);
         let enriched: Value = serde_json::from_slice(
-            &enrich_native_message(file_input_message(&references), 54321, &upstream).unwrap(),
+            &enrich_native_message(
+                file_input_message(&references),
+                54321,
+                TEST_RELAY_TOKEN,
+                &upstream,
+            )
+            .unwrap(),
         )
         .unwrap();
 
@@ -1378,6 +1606,7 @@ mod tests {
         let enriched = enrich_native_message_with_pre_read_hook(
             file_input_message(&[&file]),
             54321,
+            TEST_RELAY_TOKEN,
             &upstream,
             || {
                 hook_runs.fetch_add(1, Ordering::SeqCst);
@@ -1425,9 +1654,10 @@ mod tests {
         .unwrap();
 
         let upstream = AtomicU16::new(0);
-        let enriched: Value =
-            serde_json::from_slice(&enrich_native_message(payload, 54321, &upstream).unwrap())
-                .unwrap();
+        let enriched: Value = serde_json::from_slice(
+            &enrich_native_message(payload, 54321, TEST_RELAY_TOKEN, &upstream).unwrap(),
+        )
+        .unwrap();
 
         assert_eq!(
             enriched["applicationState"]["_firefoxFilePayloads"],
@@ -1463,7 +1693,12 @@ mod tests {
         let worker = thread::spawn(move || {
             let upstream = AtomicU16::new(0);
             result_tx
-                .send(enrich_native_message(payload, 54321, &upstream))
+                .send(enrich_native_message(
+                    payload,
+                    54321,
+                    TEST_RELAY_TOKEN,
+                    &upstream,
+                ))
                 .unwrap();
         });
 
@@ -1507,12 +1742,17 @@ mod tests {
         let (result_tx, result_rx) = mpsc::channel();
         let worker = thread::spawn(move || {
             let upstream = AtomicU16::new(0);
-            let result =
-                enrich_native_message_with_pre_read_hook(payload, 54321, &upstream, || {
+            let result = enrich_native_message_with_pre_read_hook(
+                payload,
+                54321,
+                TEST_RELAY_TOKEN,
+                &upstream,
+                || {
                     fs::remove_file(&replacement_path).unwrap();
                     create_fifo(&replacement_path);
                     hook_tx.send(()).unwrap();
-                });
+                },
+            );
             result_tx.send(result).unwrap();
         });
 
@@ -1553,11 +1793,16 @@ mod tests {
     fn rewrites_nested_websocket_urls() {
         let mut value = json!({"nested": {"url": "ws://localhost:45678/path?token=test"}});
         let upstream = AtomicU16::new(0);
-        assert!(rewrite_websocket_urls(&mut value, 54321, &upstream));
+        assert!(rewrite_websocket_urls(
+            &mut value,
+            54321,
+            TEST_RELAY_TOKEN,
+            &upstream
+        ));
         assert_eq!(upstream.load(Ordering::SeqCst), 45678);
         assert_eq!(
             value["nested"]["url"],
-            "ws://127.0.0.1:54321/path?token=test"
+            format!("ws://127.0.0.1:54321{RELAY_ROUTE_PREFIX}{TEST_RELAY_TOKEN}/path?token=test")
         );
     }
 
@@ -1570,9 +1815,10 @@ mod tests {
         }))
         .unwrap();
         let upstream = AtomicU16::new(0);
-        let enriched: Value =
-            serde_json::from_slice(&enrich_native_message(payload, 54321, &upstream).unwrap())
-                .unwrap();
+        let enriched: Value = serde_json::from_slice(
+            &enrich_native_message(payload, 54321, TEST_RELAY_TOKEN, &upstream).unwrap(),
+        )
+        .unwrap();
         assert_eq!(enriched["_firefoxBridgeVersion"], env!("CARGO_PKG_VERSION"));
     }
 
@@ -1621,12 +1867,54 @@ mod tests {
 
     #[test]
     fn rewrites_websocket_origin_and_host() {
-        let request = "GET / HTTP/1.1\r\nHost: 127.0.0.1:1\r\nOrigin: moz-extension://abc\r\n\r\n";
-        let rewritten = rewrite_websocket_request(request, 45678);
+        let request = format!(
+            "GET {RELAY_ROUTE_PREFIX}{TEST_RELAY_TOKEN}/socket?client=test HTTP/1.1\r\nHost: 127.0.0.1:1\r\nOrigin: moz-extension://abc-123\r\nUpgrade: websocket\r\nConnection: keep-alive, Upgrade\r\nSec-WebSocket-Key: dGVzdA==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        );
+        let authenticated = authenticate_and_rewrite_websocket_request(&request, TEST_RELAY_TOKEN)
+            .expect("a complete extension WebSocket handshake with the secret route must pass");
+        assert!(authenticated.starts_with("GET /socket?client=test HTTP/1.1\r\n"));
+        let rewritten = rewrite_websocket_request(&authenticated, 45678);
         assert!(rewritten.contains("Host: 127.0.0.1:45678\r\n"));
         assert!(
             rewritten.contains("Origin: chrome-extension://hehggadaopoacecdllhhajmbjkdcmajg\r\n")
         );
+    }
+
+    #[test]
+    fn rejects_websocket_relay_requests_without_the_secret_route() {
+        let request = "GET /socket HTTP/1.1\r\nHost: 127.0.0.1:1\r\nOrigin: moz-extension://abc\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGVzdA==\r\nSec-WebSocket-Version: 13\r\n\r\n";
+        assert_eq!(
+            authenticate_and_rewrite_websocket_request(request, TEST_RELAY_TOKEN),
+            Err("WebSocket relay authentication failed")
+        );
+    }
+
+    #[test]
+    fn rejects_web_origins_and_incomplete_websocket_handshakes() {
+        let web_origin = format!(
+            "GET {RELAY_ROUTE_PREFIX}{TEST_RELAY_TOKEN}/ HTTP/1.1\r\nOrigin: https://attacker.example\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGVzdA==\r\nSec-WebSocket-Version: 13\r\n\r\n"
+        );
+        assert_eq!(
+            authenticate_and_rewrite_websocket_request(&web_origin, TEST_RELAY_TOKEN),
+            Err("WebSocket relay rejected the request Origin")
+        );
+
+        let incomplete = format!(
+            "GET {RELAY_ROUTE_PREFIX}{TEST_RELAY_TOKEN}/ HTTP/1.1\r\nOrigin: moz-extension://abc\r\n\r\n"
+        );
+        assert_eq!(
+            authenticate_and_rewrite_websocket_request(&incomplete, TEST_RELAY_TOKEN),
+            Err("WebSocket upgrade headers are incomplete")
+        );
+    }
+
+    #[test]
+    fn generates_distinct_256_bit_relay_tokens() {
+        let first = generate_relay_token().unwrap();
+        let second = generate_relay_token().unwrap();
+        assert_eq!(first.len(), RELAY_TOKEN_BYTES * 2);
+        assert!(first.bytes().all(|byte| byte.is_ascii_hexdigit()));
+        assert_ne!(first, second);
     }
 
     #[test]

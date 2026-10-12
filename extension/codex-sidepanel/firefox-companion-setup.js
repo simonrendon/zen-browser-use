@@ -15,11 +15,11 @@ export function isFirefoxCompanionSetupError(text) {
 
 export function getFirefoxCompanionSetupDetails(version) {
   const releaseBase =
-    `https://github.com/SunkenInTime/codex-computer-use-firefox-zen/releases/download/v${version}`;
+    `https://github.com/simonrendon/zen-browser-use-secure/releases/download/v${version}`;
   return {
     chromeSetupUrl: "https://learn.chatgpt.com/docs/chrome-extension#set-up-the-chrome-extension",
-    command: `npx --yes codex-firefox-bridge@${version} install`,
-    doctorCommand: `npx --yes codex-firefox-bridge@${version} doctor`,
+    command: `npx --yes zen-browser-use-secure-bridge@${version} install`,
+    doctorCommand: `npx --yes zen-browser-use-secure-bridge@${version} doctor`,
     macosUrl: `${releaseBase}/codex-firefox-bridge-${version}-macos-universal.pkg`,
     windowsUrl: `${releaseBase}/codex-firefox-bridge-${version}-windows-x64-setup.exe`,
     linuxUrl: `${releaseBase}/codex-firefox-bridge-${version}-linux-x64`,

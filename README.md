@@ -1,3 +1,11 @@
+# Secure Browser Use for Zen
+
+This security-hardened local fork uses its own extension UUID and native-host identity. It adds a fresh 256-bit capability to every native relay process, authenticates WebSocket upgrades before connecting upstream, validates page bindings, and makes production signing fail closed. See [SECURITY_HARDENING.md](SECURITY_HARDENING.md).
+
+For this local build, register the bridge with `./scripts/register-native-host.sh`, then load `extension/manifest.json` from Zen's `about:debugging#/runtime/this-firefox` page. Permanent distribution requires Mozilla signing for UUID `{2ed87dbc-332c-4f85-9655-bd6e7b932d43}`.
+
+> The remainder of this document describes the inherited compatibility surface. Upstream install links do not identify this fork and should not be used to install the hardened build.
+
 <p align="center">
   <img src="extension/images/firefox-zen-logo.png" alt="Codex Computer Use for Firefox and Zen Browser" width="180">
 </p>
@@ -142,7 +150,7 @@ The OpenAI native extension host must already be installed by ChatGPT/Codex tool
 4. Open the Codex sidebar and grant all-sites access if prompted.
 5. Start a Codex computer-use task.
 
-Temporary add-ons disappear when the browser exits. Permanent installation requires Mozilla signing while retaining the Gecko ID `codex-computer-use-firefox-zen@sunkenintime`.
+Temporary add-ons disappear when the browser exits. Permanent installation requires Mozilla signing while retaining the fork Gecko UUID `{2ed87dbc-332c-4f85-9655-bd6e7b932d43}`.
 
 Remove only the development registration with:
 
