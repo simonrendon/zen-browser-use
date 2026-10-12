@@ -4,12 +4,8 @@
   "description": "A security-hardened local bridge for Codex browser control in Zen Browser and Firefox.",
   "version": "1.0.0",
   "icons": {
-    "16": "images/firefox-zen-icon16.png",
-    "24": "images/firefox-zen-icon24.png",
     "32": "images/firefox-zen-icon32.png",
-    "48": "images/firefox-zen-icon48.png",
     "64": "images/firefox-zen-icon64.png",
-    "96": "images/firefox-zen-icon96.png",
     "128": "images/firefox-zen-icon128.png"
   },
   "browser_specific_settings": {
@@ -61,12 +57,8 @@
   ],
   "action": {
     "default_icon": {
-      "16": "images/firefox-zen-icon16.png",
-      "24": "images/firefox-zen-icon24.png",
       "32": "images/firefox-zen-icon32.png",
-      "48": "images/firefox-zen-icon48.png",
       "64": "images/firefox-zen-icon64.png",
-      "96": "images/firefox-zen-icon96.png",
       "128": "images/firefox-zen-icon128.png"
     },
     "default_title": "Secure Browser Use for Zen"
@@ -82,12 +74,8 @@
   },
   "sidebar_action": {
     "default_icon": {
-      "16": "images/firefox-zen-icon16.png",
-      "24": "images/firefox-zen-icon24.png",
       "32": "images/firefox-zen-icon32.png",
-      "48": "images/firefox-zen-icon48.png",
       "64": "images/firefox-zen-icon64.png",
-      "96": "images/firefox-zen-icon96.png",
       "128": "images/firefox-zen-icon128.png"
     },
     "default_title": "Secure Browser Use for Zen",

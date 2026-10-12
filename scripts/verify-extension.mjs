@@ -73,7 +73,7 @@ assert(setupHtml.includes('aria-labelledby="developer-install-label developer-in
 assert(setupHtml.includes("Why is this needed?"), "The setup page must explain why the companion is required.");
 assert(setupHtml.includes("Plugins → Chrome"), "The setup page must explain how to register the OpenAI native host.");
 assert(setupHtml.includes("doctor-command"), "The setup page must include bridge diagnostics.");
-for (const size of ["16", "24", "32", "48", "64", "96", "128"]) {
+for (const size of ["32", "64", "128"]) {
   assert(size in manifest.icons, `Missing ${size}px icon declaration.`);
 }
 for (const [size, icon] of Object.entries(manifest.icons)) {
