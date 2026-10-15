@@ -439,6 +439,13 @@ assert.equal(
   "The current OpenAI background requires a Firefox-safe toolbar settings event.",
 );
 
+await context.chrome.tabs.create({ url: "https://chatgpt.com/work/chrome/installed" });
+assert.equal(createdTabs.length, 0, "Chrome-only install onboarding must not open a ChatGPT 404 in Firefox or Zen.");
+await context.chrome.tabs.create({ url: "https://chatgpt.com/" });
+assert.equal(createdTabs.length, 1, "Normal tab creation must still reach Firefox.");
+assert.equal(createdTabs[0].url, "https://chatgpt.com/");
+createdTabs.length = 0;
+
 const identityPort = context.chrome.runtime.connectNative("com.openai.codexextension");
 assert.equal(nativeApplications.at(-1), "com.simonrendon.zen_browser_use_secure");
 identityPort.onMessage.addListener(() => {});

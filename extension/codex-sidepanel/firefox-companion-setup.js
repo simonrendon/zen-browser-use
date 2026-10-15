@@ -15,7 +15,7 @@ export function isFirefoxCompanionSetupError(text) {
 
 export function getFirefoxCompanionSetupDetails(version) {
   const releaseBase =
-    `https://github.com/simonrendon/zen-browser-use-secure/releases/download/v${version}`;
+    `https://github.com/simonrendon/zen-browser-use/releases/download/v${version}`;
   return {
     chromeSetupUrl: "https://learn.chatgpt.com/docs/chrome-extension#set-up-the-chrome-extension",
     command: `npx --yes zen-browser-use-secure-bridge@${version} install`,

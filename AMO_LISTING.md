@@ -2,7 +2,7 @@
 
 ## Name
 
-Codex Computer Use for Firefox
+Browser Use for Zen
 
 ## Summary
 
@@ -20,9 +20,9 @@ This is an independent compatibility project and is not an official OpenAI, Mozi
 
 ## Links
 
-- Homepage and source: <https://github.com/SunkenInTime/codex-computer-use-firefox-zen>
-- Support: <https://github.com/SunkenInTime/codex-computer-use-firefox-zen/issues>
-- Privacy: <https://github.com/SunkenInTime/codex-computer-use-firefox-zen/blob/main/PRIVACY.md>
+- Homepage and source: <https://github.com/simonrendon/zen-browser-use>
+- Support: <https://github.com/simonrendon/zen-browser-use/issues>
+- Privacy: <https://github.com/simonrendon/zen-browser-use/blob/main/PRIVACY.md>
 
 ## Notes for reviewers
 

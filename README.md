@@ -17,13 +17,13 @@ For this local build, register the bridge with `./scripts/register-native-host.s
 </p>
 
 <p align="center">
-  <a href="https://addons.mozilla.org/firefox/addon/codex-computer-use-for-zen/"><img alt="Firefox Add-on" src="https://img.shields.io/amo/v/codex-computer-use-for-zen?logo=firefoxbrowser&amp;label=Firefox%20Add-on"></a>
-  <a href="https://www.npmjs.com/package/codex-firefox-bridge"><img alt="npm bridge" src="https://img.shields.io/npm/v/codex-firefox-bridge?logo=npm&amp;label=native%20bridge"></a>
-  <a href="https://github.com/SunkenInTime/codex-computer-use-firefox-zen/releases/latest"><img alt="Latest GitHub release" src="https://img.shields.io/github/v/release/SunkenInTime/codex-computer-use-firefox-zen?logo=github"></a>
+  <a href="https://addons.mozilla.org/firefox/addon/browser-use-for-zen/"><img alt="Firefox Add-on" src="https://img.shields.io/amo/v/browser-use-for-zen?logo=firefoxbrowser&amp;label=Firefox%20Add-on"></a>
+  <a href="https://www.npmjs.com/package/zen-browser-use-secure-bridge"><img alt="npm bridge" src="https://img.shields.io/npm/v/zen-browser-use-secure-bridge?logo=npm&amp;label=native%20bridge"></a>
+  <a href="https://github.com/simonrendon/zen-browser-use/releases/latest"><img alt="Latest GitHub release" src="https://img.shields.io/github/v/release/simonrendon/zen-browser-use?logo=github"></a>
 </p>
 
 <p align="center">
-  <a href="https://addons.mozilla.org/firefox/addon/codex-computer-use-for-zen/"><strong>Install from Firefox Add-ons →</strong></a>
+  <a href="https://addons.mozilla.org/firefox/addon/browser-use-for-zen/"><strong>Install from Firefox Add-ons →</strong></a>
 </p>
 
 Codex Computer Use for Firefox translates the browser-control operations used by OpenAI's extension into Firefox APIs while preserving the familiar signed-in sidebar. Zen Browser is the primary live-test target, and Firefox is supported from the same signed add-on.
@@ -41,7 +41,7 @@ This is an independent compatibility project—not an official OpenAI, Mozilla, 
 
 ### 1. Install the signed extension
 
-[Install Codex Computer Use for Firefox from Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/codex-computer-use-for-zen/), then pin or open **Codex for Firefox and Zen Browser** from the browser toolbar.
+[Install Browser Use for Zen from Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/browser-use-for-zen/), then pin or open **Secure Browser Use for Zen** from the browser toolbar.
 
 ### 2. Install the matching native bridge
 
@@ -57,7 +57,7 @@ The bridge remains installed after `npx` exits. Check it at any time with:
 npx --yes codex-firefox-bridge@latest doctor
 ```
 
-Windows and universal Apple Silicon/Intel macOS installers are attached to every [GitHub release](https://github.com/SunkenInTime/codex-computer-use-firefox-zen/releases/latest), along with the Linux x64 binary used by the npm installer.
+Windows and universal Apple Silicon/Intel macOS installers are attached to every [GitHub release](https://github.com/simonrendon/zen-browser-use/releases/latest), along with the Linux x64 binary used by the npm installer.
 
 ### 3. Open the sidebar
 

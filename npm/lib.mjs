@@ -6,7 +6,7 @@ export const HOST_NAME = "com.simonrendon.zen_browser_use_secure";
 export const GECKO_EXTENSION_ID =
   "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}";
 export const REPOSITORY =
-  "simonrendon/zen-browser-use-secure";
+  "simonrendon/zen-browser-use";
 
 export function platformAsset(version, platform = process.platform, arch = process.arch) {
   if (platform === "win32" && arch === "x64") {
@@ -188,9 +188,10 @@ export function expectedChecksum(contents, assetName) {
 }
 
 export function assertSafeInstallDirectory(directory, platform = process.platform) {
-  const resolved = path.resolve(directory);
-  const expectedName = "Codex Firefox Bridge";
-  if (path.basename(resolved) !== expectedName) {
+  const platformPath = platform === "win32" ? path.win32 : path.posix;
+  const resolved = platformPath.resolve(directory);
+  const expectedName = "Secure Browser Use for Zen";
+  if (platformPath.basename(resolved) !== expectedName) {
     throw new Error(`Refusing to modify unexpected install directory: ${resolved}`);
   }
   if (platform === "win32" && !process.env.LOCALAPPDATA) {

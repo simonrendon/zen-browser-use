@@ -1,6 +1,6 @@
 {
   "name": "zen-browser-use-secure-bridge",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Install and manage the Secure Browser Use native bridge for Zen Browser",
   "type": "module",
   "bin": {
@@ -23,13 +23,13 @@
     "zen-browser",
     "native-messaging"
   ],
-  "homepage": "https://github.com/simonrendon/zen-browser-use-secure",
+  "homepage": "https://github.com/simonrendon/zen-browser-use",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/simonrendon/zen-browser-use-secure.git",
+    "url": "git+https://github.com/simonrendon/zen-browser-use.git",
     "directory": "npm"
   },
-  "bugs": "https://github.com/simonrendon/zen-browser-use-secure/issues",
+  "bugs": "https://github.com/simonrendon/zen-browser-use/issues",
   "license": "UNLICENSED",
   "publishConfig": {
     "access": "public",
