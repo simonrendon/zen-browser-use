@@ -8,4 +8,4 @@ The bundled OpenAI sidebar and host can communicate with OpenAI services to auth
 
 Browser permissions are used only to implement user-requested computer-use functions and the signed-in sidebar. The companion is installed separately so Firefox can cross its local-process security boundary. It listens only on a dynamically allocated loopback port while the sidebar is connected, pins relayed WebSocket requests to the official OpenAI Chrome-extension origin, and does not expose a remote service. Remove it through Windows Apps settings, the macOS installer receipt/package-management flow, `npx --yes codex-firefox-bridge uninstall` on Linux, or the platform development unregister script.
 
-Questions or reports can be filed at <https://github.com/SunkenInTime/codex-computer-use-firefox-zen/issues>.
+Questions or reports can be filed at <https://github.com/simonrendon/zen-browser-use/issues>.

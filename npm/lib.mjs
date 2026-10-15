@@ -6,7 +6,7 @@ export const HOST_NAME = "com.simonrendon.zen_browser_use_secure";
 export const GECKO_EXTENSION_ID =
   "{2ed87dbc-332c-4f85-9655-bd6e7b932d43}";
 export const REPOSITORY =
-  "simonrendon/zen-browser-use-secure";
+  "simonrendon/zen-browser-use";
 
 export function platformAsset(version, platform = process.platform, arch = process.arch) {
   if (platform === "win32" && arch === "x64") {

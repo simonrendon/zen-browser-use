@@ -1,6 +1,6 @@
 [package]
 name = "codex-firefox-bridge"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 description = "Security-hardened native-messaging bridge for Zen Browser"
 license = "UNLICENSED"

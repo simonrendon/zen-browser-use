@@ -269,6 +269,7 @@
   const sidePanelClosed = new CompatEvent();
   const actionUserSettingsChanged = new CompatEvent();
   const runtimeMessageListenerWrappers = new WeakMap();
+  const CHROME_INSTALL_ONBOARDING_PATH = "/work/chrome/installed";
 
   const actionCompat = new Proxy(firefox.action, {
     get(target, property) {
@@ -280,6 +281,35 @@
       }
       if (property === "onUserSettingsChanged") {
         return actionUserSettingsChanged;
+      }
+      return bindValue(target, property);
+    },
+  });
+
+  function isChromeInstallOnboardingUrl(value) {
+    try {
+      const url = new URL(String(value));
+      return url.origin === "https://chatgpt.com"
+        && url.pathname.replace(/\/+$/u, "") === CHROME_INSTALL_ONBOARDING_PATH;
+    } catch {
+      return false;
+    }
+  }
+
+  const tabsCompat = new Proxy(firefox.tabs, {
+    get(target, property) {
+      if (property === "create") {
+        return async (details = {}) => {
+          // The packaged Chrome background opens a Chrome-only onboarding URL
+          // after installation. It currently resolves to a ChatGPT 404 in
+          // Firefox and Zen. Setup for this port lives inside the sidebar, so
+          // suppress only that inherited install tab and preserve every other
+          // tabs.create call.
+          if (isChromeInstallOnboardingUrl(details.url)) {
+            return undefined;
+          }
+          return target.create(details);
+        };
       }
       return bindValue(target, property);
     },
@@ -4765,6 +4795,9 @@
       if (property === "sidePanel") {
         return sidePanelCompat;
       }
+      if (property === "tabs") {
+        return tabsCompat;
+      }
       return bindValue(target, property);
     },
   });
@@ -4784,6 +4817,7 @@
     action: actionCompat,
     debugger: debuggerCompat,
     sidePanel: sidePanelCompat,
+    tabs: tabsCompat,
     version: 1,
   };
 })();

@@ -2,7 +2,7 @@
   "name": "secure-browser-use-for-zen",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Security-hardened browser-use compatibility layer for Zen Browser",
   "scripts": {
     "check": "node scripts/check-version.mjs && node scripts/verify-extension.mjs",

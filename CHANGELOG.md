@@ -5,6 +5,14 @@
 - Fix strict-CSP screenshot capture by measuring layout and device-pixel ratio without page eval.
 - Support the computer-use scroll and activation fallbacks for covered editors without page eval.
 
+## 1.0.1 - 2026-10-15
+
+- Prevent the inherited Chrome-only post-install onboarding tab from opening a
+  ChatGPT 404 after installation from Firefox Add-ons.
+- Keep all ordinary Firefox and Zen Browser tab creation unchanged.
+- Point companion downloads, support, privacy, and review metadata at the
+  canonical `simonrendon/zen-browser-use` repository.
+
 ## 1.4.12 - 2026-09-10
 
 - Fix strict-CSP failures in computer-use element clicks by running the AX hit-test and remote-object cleanup without page eval.

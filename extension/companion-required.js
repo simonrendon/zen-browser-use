@@ -3,7 +3,7 @@
 
   const version = browser.runtime.getManifest().version;
   const releaseBase =
-    `https://github.com/simonrendon/zen-browser-use-secure/releases/download/v${version}`;
+    `https://github.com/simonrendon/zen-browser-use/releases/download/v${version}`;
   const windows = document.querySelector("#windows-download");
   const macos = document.querySelector("#macos-download");
   const linux = document.querySelector("#linux-download");

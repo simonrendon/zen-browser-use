@@ -64,7 +64,7 @@ for (const setupFile of [
 new vm.Script(read("extension/companion-required.js"), { filename: "companion-required.js" });
 const setupHtml = read("extension/companion-required.html");
 assert(setupHtml.includes("zen-browser-use-secure-bridge@"), "The npm installation path is missing from setup.");
-assert(setupHtml.includes("https://github.com/simonrendon/zen-browser-use-secure/releases/latest"), "The signed extension update path is missing from setup.");
+assert(setupHtml.includes("https://github.com/simonrendon/zen-browser-use/releases/latest"), "The signed extension update path is missing from setup.");
 assert(setupHtml.includes('id="version-status"'), "The setup page cannot show installed version details.");
 assert(setupHtml.includes('id="linux-download"'), "The setup page is missing the Linux companion download.");
 assert(setupHtml.includes("Download Linux binary"), "The setup page must not present the Linux binary as an installer.");
@@ -87,6 +87,7 @@ for (const match of sidebarHtml.matchAll(/(?:src|href)="\.\/([^"?#]+)"/gu)) {
 
 const compatibilitySource = read("extension/firefox-compat.js");
 assert(compatibilitySource.includes("companionVersionMismatchPromptShown:"), "Missing bridge version mismatch guidance.");
+assert(compatibilitySource.includes('CHROME_INSTALL_ONBOARDING_PATH = "/work/chrome/installed"'), "Chrome-only install onboarding is not suppressed.");
 assert(!compatibilitySource.includes('tabs.create({\n              url: firefox.runtime.getURL("companion-required.html")'), "Companion setup must not open a surprise tab.");
 const sidebarSetupSource = read("extension/codex-sidepanel/firefox-companion-setup.js");
 assert(sidebarSetupSource.includes("Native transport disconnected"), "Sidebar setup must recognize a disconnected native transport.");
