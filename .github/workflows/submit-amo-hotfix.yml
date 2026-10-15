@@ -1,0 +1,53 @@
+name: Submit AMO Hotfix
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: submit-amo-hotfix
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify extension and native protocol
+        run: npm test
+      - name: Verify npm companion installer
+        run: npm test --prefix npm
+      - name: Lint Firefox extension
+        run: npx --yes web-ext@10.6.0 lint --source-dir extension --no-input
+      - name: Prepare review source and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./version.json').version")"
+          mkdir -p dist
+          git archive --format=zip \
+            --output="dist/codex-computer-use-firefox-zen-${version}-source.zip" \
+            HEAD
+          node scripts/prepare-amo-metadata.mjs
+      - name: Submit update to the existing Firefox Add-ons listing
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./version.json').version")"
+          npx --yes web-ext@10.6.0 sign \
+            --source-dir extension \
+            --channel listed \
+            --upload-source-code "dist/codex-computer-use-firefox-zen-${version}-source.zip" \
+            --amo-metadata dist/amo-metadata.json \
+            --approval-timeout 0 \
+            --no-input
+          echo "Submitted version ${version} to AMO; Mozilla approval may remain pending." >> "$GITHUB_STEP_SUMMARY"
