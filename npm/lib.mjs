@@ -188,9 +188,10 @@ export function expectedChecksum(contents, assetName) {
 }
 
 export function assertSafeInstallDirectory(directory, platform = process.platform) {
-  const resolved = path.resolve(directory);
+  const platformPath = platform === "win32" ? path.win32 : path.posix;
+  const resolved = platformPath.resolve(directory);
   const expectedName = "Secure Browser Use for Zen";
-  if (path.basename(resolved) !== expectedName) {
+  if (platformPath.basename(resolved) !== expectedName) {
     throw new Error(`Refusing to modify unexpected install directory: ${resolved}`);
   }
   if (platform === "win32" && !process.env.LOCALAPPDATA) {
