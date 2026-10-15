@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import {
+  assertSafeInstallDirectory,
   checksumAsset,
   downloadWithRetry,
   expectedChecksum,
@@ -108,6 +109,17 @@ test("uses per-user installation locations", () => {
   assert.deepEqual(optionalManifestPaths(linuxXdg), [
     "/home/test/.zen/native-messaging-hosts/com.simonrendon.zen_browser_use_secure.json"
   ]);
+});
+
+test("accepts only the fork's expected install directory", () => {
+  assert.equal(
+    assertSafeInstallDirectory("/home/test/.local/share/Secure Browser Use for Zen", "linux"),
+    "/home/test/.local/share/Secure Browser Use for Zen"
+  );
+  assert.throws(
+    () => assertSafeInstallDirectory("/home/test/.local/share/Other App", "linux"),
+    /Refusing to modify unexpected install directory/u
+  );
 });
 
 test("retries transient release-download failures", async () => {

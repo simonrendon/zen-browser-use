@@ -12,6 +12,8 @@
 - Keep all ordinary Firefox and Zen Browser tab creation unchanged.
 - Point companion downloads, support, privacy, and review metadata at the
   canonical `simonrendon/zen-browser-use` repository.
+- Repair the Linux companion install-directory safety check for the fork's
+  actual `Secure Browser Use for Zen` directory name.
 
 ## 1.4.12 - 2026-09-10
 

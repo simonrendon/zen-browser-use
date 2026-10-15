@@ -189,7 +189,7 @@ export function expectedChecksum(contents, assetName) {
 
 export function assertSafeInstallDirectory(directory, platform = process.platform) {
   const resolved = path.resolve(directory);
-  const expectedName = "Codex Firefox Bridge";
+  const expectedName = "Secure Browser Use for Zen";
   if (path.basename(resolved) !== expectedName) {
     throw new Error(`Refusing to modify unexpected install directory: ${resolved}`);
   }
